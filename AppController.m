@@ -479,6 +479,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	encodeOutputHandle = nil;
 
 	if (encodeSucceeded == YES) {
+		[self setHDFlag:currentItem error:&error];
 		[self writeMetadata:currentItem error:&error];
 		[self writeArt:currentItem error:&error];
 		[currentItem setStatus:[NSNumber numberWithInt:255]];
@@ -638,6 +639,67 @@ const NSString *QMErrorDomain = @"QMErrors";
 	return YES;
 }
 
+- (BOOL) setHDFlag: (QueueItem *)anItem error:(NSError **) outError {
+	NSTask *mp4trackTask = [[NSTask alloc] init];
+	NSPipe *mp4trackStdoutPipe = [NSPipe pipe];
+	NSFileHandle *mp4trackStdoutHandle = [mp4trackStdoutPipe fileHandleForReading];
+	[mp4trackTask setStandardOutput:mp4trackStdoutPipe];
+	
+	// set arguments
+    NSMutableArray *taskArgs = [NSMutableArray array];
+	[taskArgs addObject:@"--list"];
+	[taskArgs addObject:[anItem output]];
+	
+	NSLog(@"Starting task with arguments: %@", [taskArgs componentsJoinedByString:@" "]);
+    [mp4trackTask setArguments:taskArgs];
+	
+	// launch
+    [mp4trackTask setLaunchPath:[appResourceDir stringByAppendingPathComponent:@"mp4track"]];
+    [mp4trackTask launch];
+	
+	NSData *outputData = nil;
+	while ([mp4trackTask isRunning]) {
+		sleep(1);
+	}
+	
+	outputData = [mp4trackStdoutHandle readDataToEndOfFile];
+	
+	NSString *output = [[NSString alloc] initWithData:outputData encoding:NSASCIIStringEncoding];
+	NSArray *lines = [output componentsSeparatedByString:@"\n"];
+	NSLog(@"Found %d lines", [lines count]);
+	NSString *keyName = nil;
+	NSString *value = nil;
+	NSNumber *width = nil;
+	BOOL foundVideo = NO;
+	NSNumberFormatter *formatter = [[NSNumberFormatter alloc] init];
+	for(NSString *line in lines){
+		NSLog(@"Looking at line %@", line);
+		if([line getCapturesWithRegexAndReferences:@"\\s*([a-zA-Z]+)\\s*=\\s*([a-zA-Z0-9]+)", @"${1}", &keyName, @"${2}", &value, nil]){
+			NSLog(@"Matched line: %@=%@", keyName, value);
+			if ([keyName isEqualToString:@"type"] && [value isEqualToString:@"video"]) {
+				foundVideo = YES;
+				NSLog(@"Found video track");
+			}
+			if (foundVideo && [keyName isEqualToString:@"height"] ) {
+				NSLog(@"Found width %@", value);
+				width = [formatter numberFromString:value];
+				break;
+			}
+		}
+	}
+	
+	NSLog(@"mp4track task ended with status %d", [mp4trackTask terminationStatus]);
+	if([width intValue] >= 720){
+		NSLog(@"Setting hd flag to 1");
+		[anItem setHdVideo:[NSNumber numberWithInt:1]];
+	}else{
+		NSLog(@"Setting hd flag to 0");
+		[anItem setHdVideo:[NSNumber numberWithInt:0]];
+	}
+		
+	return YES;
+}
+
 - (void)stopEncode{
 	if ([self isEncodeRunning]) {
 		runQueue = FALSE;
@@ -721,6 +783,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	[patterns addObject:@"(.+)[sS][eE]*\\s*(\\d+)[eE]\\s*(\\d+)"];
 	[patterns addObject:@"(.+)[sS][eE]*\\s*(\\d+)\\s*-\\s*[eE]\\s*(\\d+)"];
 	[patterns addObject:@"(.+)Season\\s*(\\d+)\\s*Episode\\s*(\\d+)"];
+	[patterns addObject:@"(.+?)([0-9][0-9])x([0-9][0-9]?)"];
 	[patterns addObject:@"(.+?)([0-9])x([0-9][0-9]?)"];
 	[patterns autorelease];
 
