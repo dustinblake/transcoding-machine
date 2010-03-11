@@ -59,6 +59,7 @@
 - (BOOL) updateMetadata: (QueueItem *)anItem error:(NSError **)outError;
 - (BOOL) writeMetadata: (QueueItem *)anItem error:(NSError **)outError;
 - (BOOL) writeArt: (QueueItem *)anItem error:(NSError **)outError;
+- (BOOL) setHDFlag: (QueueItem *)anItem error:(NSError **)outError;
 
 - (BOOL) runQueue;
 - (BOOL) isEncodeRunning;

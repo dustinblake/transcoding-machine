@@ -359,6 +359,7 @@
 
 - (IBAction)writeMetadata: (id)sender{
 	NSError *anError;
+	[appController setHDFlag: editingItem error:&anError];
 	[appController writeMetadata: editingItem error:&anError];
 	[appController writeArt: editingItem error:&anError];
 }
