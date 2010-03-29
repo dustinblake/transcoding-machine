@@ -10,6 +10,7 @@
 #import "PrefController.h"
 #import "QueueController.h"
 #import "QueueItem.h"
+#import "MediaItem.h"
 
 
 @interface AppController : NSObject {
@@ -33,8 +34,17 @@
 	double encodeProgress;
 	NSString *encodeETA;
 	
+	NSTask *metadataTask;
+	NSFileHandle *metadataOutputHandle;
+	NSTimer *metadataReadTimer;
+	MediaItem *metadataItem;
+
 	BOOL runQueue;
 	BOOL terminating;
+	
+	IBOutlet NSWindow *progressWindow;
+	IBOutlet NSProgressIndicator *progressBar;
+	IBOutlet NSTextField *progressLabel;
 }
 @property (nonatomic, retain, readonly) NSPersistentStoreCoordinator *persistentStoreCoordinator;
 @property (nonatomic, retain, readonly) NSManagedObjectModel *managedObjectModel;
@@ -55,11 +65,14 @@
 - (BOOL) moveItemUp: (QueueItem *)anItem;
 - (BOOL) moveItemDown: (QueueItem *)anItem;
 - (QueueItem *) addFileToQueue: (NSString *)path error:(NSError **)outError;
-- (BOOL) processFileName: (QueueItem *)anItem error:(NSError **)outError;
-- (BOOL) updateMetadata: (QueueItem *)anItem error:(NSError **)outError;
-- (BOOL) writeMetadata: (QueueItem *)anItem error:(NSError **)outError;
-- (BOOL) writeArt: (QueueItem *)anItem error:(NSError **)outError;
-- (BOOL) setHDFlag: (QueueItem *)anItem error:(NSError **)outError;
+- (BOOL) processFileName: (MediaItem *)anItem error:(NSError **)outError;
+- (BOOL) updateMetadata: (MediaItem *)anItem error:(NSError **)outError;
+- (BOOL) writeMetadata: (MediaItem *)anItem error:(NSError **)outError;
+- (BOOL) cleanOldTags: (MediaItem *)anItem error:(NSError **) outError;
+- (BOOL) writeArt: (MediaItem *)anItem error:(NSError **)outError;
+- (BOOL) setHDFlag: (MediaItem *)anItem error:(NSError **)outError;
+
+- (MediaItem *) mediaItemFromFile:(NSString *)path error:(NSError **)outError;
 
 - (BOOL) runQueue;
 - (BOOL) isEncodeRunning;

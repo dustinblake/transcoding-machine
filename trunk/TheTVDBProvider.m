@@ -280,11 +280,13 @@
 	
 	[item setTitle: [self stringFromNode:doc usingXPath:@"Data/Episode/EpisodeName"]];
 	
+	[item setReleaseDate: [self stringFromNode:doc usingXPath:@"Data/Episode/FirstAired"]];
+
 	// Download image
 	NSString *imageUrl = [self stringFromNode:doc usingXPath:@"Data/Episode/filename"];
 	if (imageUrl != nil && ![imageUrl isEqual:[NSString string]]) {
 		NSString *imageUrlString = [NSString stringWithFormat:@"http://www.thetvdb.com/banners/%@", imageUrl];
-		NSLog(@"Downloading episode image from %@", urlString);
+		NSLog(@"Downloading episode image from %@", imageUrlString);
 		NSURL *imageUrl = [NSURL URLWithString:imageUrlString];
 		
 		NSURLRequest *imageUrlRequest = [NSURLRequest requestWithURL:imageUrl 

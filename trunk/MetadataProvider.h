@@ -8,11 +8,12 @@
 
 #import <Cocoa/Cocoa.h>
 #import "QueueItem.h"
+#import "MediaItem.h"
 
 @interface MetadataProvider : NSObject {
-	QueueItem *item;
+	MediaItem *item;
 }
-- (id)initWithAnItem: (QueueItem *)anItem;
+- (id)initWithAnItem: (MediaItem *)anItem;
 - (BOOL)applyMetadata;
 - (NSString *)stringFromNode: (NSXMLNode *)node usingXPath: (NSString *)xpath;
 

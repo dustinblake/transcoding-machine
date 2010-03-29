@@ -1,47 +1,20 @@
 // 
 //  QueueItem.m
-//  QueueManager
+//  TranscodingMachine
 //
-//  Created by Cory Powers on 12/28/09.
-//  Copyright 2009 __MyCompanyName__. All rights reserved.
+//  Created by Cory Powers on 3/22/10.
+//  Copyright 2010 __MyCompanyName__. All rights reserved.
 //
 
 #import "QueueItem.h"
 #import "AppController.h"
-
+#import "MediaItem.h"
 
 @implementation QueueItem 
 
-@dynamic copyright;
-@dynamic coverArt;
-@dynamic episode;
-@dynamic genre;
-@dynamic hdVideo;
-@dynamic input;
-@dynamic longDescription;
-@dynamic network;
-@dynamic output;
-@dynamic releaseDate;
-@dynamic season;
-@dynamic showName;
-@dynamic sortOrder;
 @dynamic status;
-@dynamic summary;
-@dynamic title;
-@dynamic type;
-
-@dynamic message;
-
--(NSString *)shortName{
-	return [[self input] lastPathComponent];
-}
-
--(NSString *)episodeId{
-	if ([self type] == [NSNumber numberWithInt:ItemTypeTV]) {
-		return [NSString stringWithFormat:@"%d%.2d", [[self season] intValue], [[self episode] intValue]];
-	}
-	return [NSString string];
-}
+@dynamic sortOrder;
+@dynamic mediaItem;
 
 - (NSData *)statusImage{
 	NSString* imageName;
@@ -60,13 +33,13 @@
 - (NSScriptObjectSpecifier *)objectSpecifier{
 	
 	NSLog(@"Object specifier was called");
-
+	
 	AppController *appController = [NSApp delegate];
     NSArray *queueItems = [appController queueItems];
     unsigned index = [queueItems indexOfObjectIdenticalTo:self];
 	
 	NSScriptClassDescription *appClassDesc = (NSScriptClassDescription *)[NSScriptClassDescription classDescriptionForClass:[NSApp class]];
-
+	
 	NSIndexSpecifier *indexSpecifier = [[NSIndexSpecifier alloc] 
 										initWithContainerClassDescription:appClassDesc 
 										containerSpecifier:nil 
@@ -74,6 +47,7 @@
 										index:index];
 	NSLog(@"Sending specifier: %@", indexSpecifier);
 	return indexSpecifier;
-
+	
 }
+
 @end
