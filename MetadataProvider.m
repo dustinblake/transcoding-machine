@@ -14,7 +14,7 @@
 	return nil;
 }
 
-- (id)initWithAnItem:(QueueItem *)anItem{
+- (id)initWithAnItem:(MediaItem *)anItem{
     self = [super init];
     if( !self ){
         return nil;
@@ -24,11 +24,11 @@
 	return self;
 }
 
-- (QueueItem *)item{
+- (MediaItem *)item{
 	return item;
 }
 
-- (void)setItem: (QueueItem *)anItem {
+- (void)setItem: (MediaItem *)anItem {
 	[item release];
 	item = [anItem retain];
 }

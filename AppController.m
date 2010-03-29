@@ -368,9 +368,9 @@ const NSString *QMErrorDomain = @"QMErrors";
     NSMutableArray *taskArgs = [NSMutableArray array];
 	for(NSString *inputArg in argArray){
 		if ([inputArg isEqual:@"|INPUT|"]) {
-			[taskArgs addObject:[anItem input]];
+			[taskArgs addObject: anItem.mediaItem.input];
 		}else if ([inputArg isEqual:@"|OUTPUT|"]) {
-			[taskArgs addObject:[anItem output]];
+			[taskArgs addObject: anItem.mediaItem.output];
 		}else{
 			[taskArgs addObject:inputArg];
 		}
@@ -393,7 +393,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 		// Setup the timer and status file
 		outputReadTimer = [[NSTimer scheduledTimerWithTimeInterval: 2 
 														   target: self 
-														 selector:@selector(outputTimerFired:)
+														 selector:@selector(encodeProgressTimer:)
 														 userInfo: nil
 														  repeats: TRUE] retain];
 		encodeOutputHandle = [[NSFileHandle fileHandleForReadingAtPath:encodeStatusFile] retain];
@@ -404,7 +404,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	return NO;
 }
 
-- (void)outputTimerFired:(NSTimer*)theTimer{
+- (void)encodeProgressTimer:(NSTimer*)theTimer{
 	// Read the last line
 	NSLog(@"Output read timer fired");
 	NSString *fileData = [[NSString alloc] initWithData:[encodeOutputHandle readDataToEndOfFile] 
@@ -438,160 +438,256 @@ const NSString *QMErrorDomain = @"QMErrors";
 }
 
 - (void)taskEnded:(NSNotification *)aNotification {
-	QueueItem *currentItem = [self encodingItem];
 	NSTask *notifyingTask = [aNotification object];
 	NSError *error;
-	BOOL encodeSucceeded = NO;
+	int status = [notifyingTask terminationStatus];
 	
 	if (notifyingTask == encodingTask) {
+		QueueItem *currentItem = [self encodingItem];
 		NSLog(@"The encoding task has stopped");
-	}else{
-		return;
-	}
-	int status = [notifyingTask terminationStatus];
-    if (status == 0){
-		// See if output file exists. Sometimes handbrake exits with 0 code without working
-		NSFileManager *fileManager = [NSFileManager defaultManager];
-		if ([fileManager fileExistsAtPath:[currentItem output]]){
-			encodeSucceeded = YES;
-			NSLog(@"Task succeeded.");
+		BOOL encodeSucceeded = NO;
+		if (status == 0){
+			// See if output file exists. Sometimes handbrake exits with 0 code without working
+			NSFileManager *fileManager = [NSFileManager defaultManager];
+			if ([fileManager fileExistsAtPath: currentItem.mediaItem.output]){
+				encodeSucceeded = YES;
+				NSLog(@"Task succeeded.");
+			}
 		}
+		// Clear out our cached encode pid 
+		NSUserDefaults *standardDefaults = [NSUserDefaults standardUserDefaults];
+		[standardDefaults setObject:[NSNumber numberWithInt:0] forKey:@"encodePid"];
+		
+		
+		// Update the queue item's status
+		[queueController encodeEnded];
+		
+		// Clean up
+		[outputReadTimer invalidate];
+		[outputReadTimer release];
+		outputReadTimer = nil;
+		[encodingItem release];
+		encodingItem = nil;
+		[encodingTask release];
+		encodingTask = nil;
+		[encodeOutputHandle release];
+		encodeOutputHandle = nil;
+		
+		if (encodeSucceeded == YES) {
+			[self setHDFlag:currentItem.mediaItem error:&error];
+			[self writeMetadata:currentItem.mediaItem error:&error];
+			[currentItem setStatus:[NSNumber numberWithInt:255]];
+		}else {
+			NSFileHandle *logHandle = [NSFileHandle fileHandleForReadingAtPath:encodeStatusFile];
+			NSString *fileData = [[NSString alloc] initWithData:[logHandle readDataToEndOfFile] 
+													   encoding:NSASCIIStringEncoding];
+			currentItem.mediaItem.message = fileData;
+			currentItem.status = [NSNumber numberWithInt:3];
+		}
+		
+		[self saveAction:nil];	
+		// If the user requested to terminate then do so
+		if (terminating == TRUE) {
+			[[NSApplication sharedApplication] replyToApplicationShouldTerminate: YES];
+		}else {
+			[self runQueue];
+		}
+	}else if(notifyingTask == metadataTask){
+		NSLog(@"metadata task ended with status %d", status);		
+		
+		[metadataReadTimer invalidate];
+		[metadataReadTimer release];
+		metadataReadTimer = nil;
+		[metadataTask release];
+		metadataTask = nil;
+		[metadataOutputHandle release];
+		metadataOutputHandle = nil;
+
+		[progressWindow orderOut:nil];
+		
+		[metadataItem release];
+		metadataItem = nil;
+		
 	}
 
-
-	// Clear out our cached encode pid 
-	NSUserDefaults *standardDefaults = [NSUserDefaults standardUserDefaults];
-	[standardDefaults setObject:[NSNumber numberWithInt:0] forKey:@"encodePid"];
-
-	
-	// Update the queue item's status
-	[queueController encodeEnded];
-	
-	// Clean up
-	[outputReadTimer invalidate];
-	[outputReadTimer release];
-	outputReadTimer = nil;
-	[encodingItem release];
-	encodingItem = nil;
-	[encodingTask release];
-	encodingTask = nil;
-	[encodeOutputHandle release];
-	encodeOutputHandle = nil;
-
-	if (encodeSucceeded == YES) {
-		[self setHDFlag:currentItem error:&error];
-		[self writeMetadata:currentItem error:&error];
-		[self writeArt:currentItem error:&error];
-		[currentItem setStatus:[NSNumber numberWithInt:255]];
-	}else {
-		NSFileHandle *logHandle = [NSFileHandle fileHandleForReadingAtPath:encodeStatusFile];
-		NSString *fileData = [[NSString alloc] initWithData:[logHandle readDataToEndOfFile] 
-												   encoding:NSASCIIStringEncoding];
-		[currentItem setMessage:fileData];
-		[currentItem setStatus:[NSNumber numberWithInt:3]];
-	}
-
-	[self saveAction:nil];	
-	// If the user requested to terminate then do so
-	if (terminating == TRUE) {
-		[[NSApplication sharedApplication] replyToApplicationShouldTerminate: YES];
-	}else {
-		[self runQueue];
-	}
 }
 
-- (BOOL) writeMetadata: (QueueItem *)anItem error:(NSError **) outError {
-//	NSString *mp4tagsLogPath = [[self applicationSupportDirectory] stringByAppendingPathComponent:@"mp4tags.log"];
-//	
-//	[[NSFileManager defaultManager] createFileAtPath:mp4tagsLogPath contents:nil attributes:nil];
+- (void)metadataProgressTimer:(NSTimer*)theTimer{
+	// Read the last line
+	NSString *fileData;
+	NSNumberFormatter *formatter = [[NSNumberFormatter alloc] init];
+	fileData = [[NSString alloc] initWithData:[metadataOutputHandle readDataToEndOfFile] 
+									 encoding:NSASCIIStringEncoding];
+	NSLog(@"File Data: %@", fileData);
+	NSArray *lines = [fileData componentsSeparatedByString:@"\r"];
+	NSLog(@"Found %d lines", [lines count]);
+	NSString *lastLine = [lines objectAtIndex:[lines count] - 1];
+	if ([lastLine isEqualToString:@""] && [lines count] > 1) {
+		NSLog(@"Using previous line");
+		lastLine = [lines objectAtIndex:[lines count] - 2];
+	}
+	NSLog(@"Last line: %@", lastLine);
+	// Extract required info from last line
+	NSString *progressString;
+	if([lastLine getCapturesWithRegexAndReferences:@"(\\d+)", @"${1}", &progressString, nil]){
+		NSLog(@"Found progress string: %@", progressString);
+		[progressBar setIndeterminate:NO];
+		[progressBar setDoubleValue:[[formatter numberFromString:progressString] doubleValue]];
+	}
+	[formatter release];
+	[fileData release];		
+}
 
-	NSTask *mp4tagsTask = [[NSTask alloc] init];
-	// make stdout file
-//	NSFileHandle *taskStdout = [NSFileHandle fileHandleForWritingAtPath:mp4tagsLogPath];
-//	[mp4tagsTask setStandardOutput:taskStdout];
+- (BOOL) cleanOldTags: (MediaItem *)anItem error:(NSError **) outError{
+	if(anItem == nil){
+		NSLog(@"cleanOldTags received nil MediaItem!");
+	}
 	
-	
+	NSTask *cleanTask = [[NSTask alloc] init];
     // set arguments
     NSMutableArray *taskArgs = [NSMutableArray array];
-	if ([anItem episodeId] != [NSString string]) {
-		[taskArgs addObject:@"-o"];
-		[taskArgs addObject: [anItem episodeId]];
-		[taskArgs addObject:@"-I"];
-		[taskArgs addObject: [anItem episodeId]];
-	}
-	if ([anItem hdVideo] != nil) {
-		[taskArgs addObject:@"-H"];
-		[taskArgs addObject: [[anItem hdVideo] stringValue]];		
-	}
-	if ([anItem title] != nil) {
-		[taskArgs addObject:@"-s"];
-		[taskArgs addObject: [anItem title]];		
-	}
-	if ([anItem showName] != nil) {		
-		[taskArgs addObject:@"-a"];
-		[taskArgs addObject: [anItem showName]];
-		[taskArgs addObject:@"-S"];
-		[taskArgs addObject: [anItem showName]];
-	}
-	if ([anItem releaseDate] != nil) {
-		[taskArgs addObject:@"-y"];
-		[taskArgs addObject: [anItem releaseDate]];		
-	}
-	if ([anItem summary] != nil) {
-		[taskArgs addObject:@"-m"];
-		[taskArgs addObject: [anItem summary]];		
-	}
-	if ([anItem longDescription] != nil) {
-		[taskArgs addObject:@"-l"];
-		[taskArgs addObject: [anItem longDescription]];		
-	}
-	if ([anItem episode] != nil) {
-		[taskArgs addObject:@"-t"];
-		[taskArgs addObject: [[anItem episode] stringValue]];
-		[taskArgs addObject:@"-M"];
-		[taskArgs addObject: [[anItem episode] stringValue]];		
-	}
-	if ([anItem network] != nil) {
-		[taskArgs addObject:@"-N"];
-		[taskArgs addObject: [anItem network]];		
-	}
-	if ([anItem season] != nil) {
-		[taskArgs addObject:@"-n"];
-		[taskArgs addObject: [[anItem season] stringValue]];
-		[taskArgs addObject:@"-d"];
-		[taskArgs addObject: [[anItem season] stringValue]];		
-	}
-	[taskArgs addObject:@"-i"];
-	if ([[anItem type] intValue] == ItemTypeTV) {
-		[taskArgs addObject:@"tvshow"];
-	}else {
-		[taskArgs addObject:@"movie"];
-	}
-
-	[taskArgs addObject:[anItem output]];
+	[taskArgs addObject:anItem.output];
+	[taskArgs addObject:@"--overWrite"];
+	[taskArgs addObject:@"--artwork"];
+	[taskArgs addObject:@"REMOVE_ALL"];
 	
 	NSLog(@"Starting task with arguments: %@", [taskArgs componentsJoinedByString:@" "]);
-    [mp4tagsTask setArguments:taskArgs];
+    [cleanTask setArguments:taskArgs];
 	
 	// launch
-    [mp4tagsTask setLaunchPath:[appResourceDir stringByAppendingPathComponent:@"mp4tags"]];
-    [mp4tagsTask launch];
+    [cleanTask setLaunchPath:[appResourceDir stringByAppendingPathComponent:@"AtomicParsley"]];
+    [cleanTask launch];
 	
-	while ([mp4tagsTask isRunning]) {
+	while ([cleanTask isRunning]) {
 		sleep(1);
 	}
-	NSLog(@"tags task ended with status %d", [mp4tagsTask terminationStatus]);
+	
+	NSLog(@"art clear task ended with status %d", [cleanTask terminationStatus]);	
 	return YES;
 }
 
-- (BOOL) writeArt: (QueueItem *)anItem error:(NSError **) outError {
-	if([anItem coverArt] == nil){
+- (BOOL) writeMetadata: (MediaItem *)anItem error:(NSError **) outError {	
+	NSString *metadataLogPath = [[self applicationSupportDirectory] stringByAppendingPathComponent:@"metadata.log"];
+	[[NSFileManager defaultManager] createFileAtPath:metadataLogPath contents:nil attributes:nil];
+
+	metadataTask = [[NSTask alloc] init];
+	NSFileHandle *taskStdout = [NSFileHandle fileHandleForWritingAtPath:metadataLogPath];
+	[metadataTask setStandardOutput:taskStdout];
+	//[metadataTask setStandardError:taskStdout];
+
+	[progressLabel setStringValue:@"Cleaning old tags from file..."];
+	[progressBar setIndeterminate:YES];
+	[progressBar setDoubleValue:0.0];
+	[progressWindow makeKeyAndOrderFront:nil];
+	[self cleanOldTags:anItem error:outError];
+	[progressLabel setStringValue:@"Preparing to write new tags..."];
+	
+	// Export coverart
+	NSString *tempArtPath = [[self applicationSupportDirectory] stringByAppendingPathComponent:@"coverart.jpg"];
+	if (anItem.coverArt != nil) {
+		if([anItem.coverArt writeToFile:tempArtPath atomically:NO] == NO){
+			return NO;
+		};
+	}
+
+    // set arguments
+    NSMutableArray *taskArgs = [NSMutableArray array];
+	[taskArgs addObject:anItem.output];
+	[taskArgs addObject:@"--overWrite"];
+	[taskArgs addObject:@"--freefree"];
+	if (anItem.episodeId != [NSString string]) {
+		[taskArgs addObject:@"--TVEpisode"];
+		[taskArgs addObject: anItem.episodeId];
+	}
+	if (anItem.coverArt != nil) {
+		[taskArgs addObject:@"--artwork"];
+		[taskArgs addObject:tempArtPath];
+	}
+//	if (anItem.hdVideo != nil) {
+//		[taskArgs addObject:@"--hdvideo"];
+//		if ([[[anItem hdVideo] stringValue] isEqualToString:@"1"]) {
+//			[taskArgs addObject:@"true"];
+//		}else {
+//			[taskArgs addObject:@"false"];
+//		}
+//	}
+	if (anItem.title != nil) {
+		[taskArgs addObject:@"--title"];
+		[taskArgs addObject: anItem.title];		
+	}
+	if (anItem.showName != nil) {		
+		[taskArgs addObject:@"--artist"];
+		[taskArgs addObject: anItem.showName];
+		[taskArgs addObject:@"--TVShowName"];
+		[taskArgs addObject: anItem.showName];
+	}
+	if (anItem.releaseDate != nil) {
+		[taskArgs addObject:@"--year"];
+		[taskArgs addObject: anItem.releaseDate];		
+	}
+	if (anItem.summary != nil) {
+		[taskArgs addObject:@"--comment"];
+		[taskArgs addObject: anItem.summary];		
+	}
+	if (anItem.longDescription != nil) {
+		[taskArgs addObject:@"--description"];
+		[taskArgs addObject: anItem.longDescription];		
+	}
+	if (anItem.season != nil) {
+		[taskArgs addObject:@"--TVSeasonNum"];
+		[taskArgs addObject: [anItem.season stringValue]];
+	}
+	if (anItem.episode != nil) {
+		[taskArgs addObject:@"--TVEpisodeNum"];
+		[taskArgs addObject: [anItem.episode stringValue]];
+	}
+	if (anItem.network != nil) {
+		[taskArgs addObject:@"--TVNetwork"];
+		[taskArgs addObject: anItem.network];		
+	}
+	[taskArgs addObject:@"--stik"];
+	if ([anItem.type intValue] == ItemTypeTV) {
+		[taskArgs addObject:@"TV Show"];
+	}else {
+		[taskArgs addObject:@"Movie"];
+	}
+
+	
+	NSLog(@"Starting task with arguments: %@", [taskArgs componentsJoinedByString:@" "]);
+    [metadataTask setArguments:taskArgs];
+	
+	// launch
+    [metadataTask setLaunchPath:[appResourceDir stringByAppendingPathComponent:@"AtomicParsley"]];
+    [metadataTask launch];
+	
+	if ([metadataTask isRunning]) {
+		metadataItem = [anItem retain];
+		metadataOutputHandle = [[NSFileHandle fileHandleForReadingAtPath:metadataLogPath] retain];
+
+		metadataReadTimer = [[NSTimer scheduledTimerWithTimeInterval: 2 
+															target: self 
+														  selector:@selector(metadataProgressTimer:)
+														  userInfo: nil
+														   repeats: TRUE] retain];
+		[progressLabel setStringValue:@"Writing metadata to output file..."];
+		[progressBar setIndeterminate:YES];
+		[progressBar setDoubleValue:0.0];
+	}
+	
+	return YES;
+}
+
+- (BOOL) writeArt: (MediaItem *)anItem error:(NSError **) outError {
+	if(anItem == nil){
+		NSLog(@"writeArt received nil MediaItem!");
+	}
+	if(anItem.coverArt == nil){
 		return YES;
 	}
 	
 	NSTask *mp4artTask = [[NSTask alloc] init];
 	NSString *tempArtPath = [[self applicationSupportDirectory] stringByAppendingPathComponent:@"coverart.jpg"];
-	if([[anItem coverArt] writeToFile:tempArtPath atomically:NO] == NO){
+	if([anItem.coverArt writeToFile:tempArtPath atomically:NO] == NO){
 		return NO;
 	};
 
@@ -600,7 +696,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	[taskArgs addObject:@"--keepgoing"];
 	[taskArgs addObject:@"--remove"];
 	[taskArgs addObject:@"--art-any"];
-	[taskArgs addObject:[anItem output]];
+	[taskArgs addObject:anItem.output];
 	
 	NSLog(@"Starting task with arguments: %@", [taskArgs componentsJoinedByString:@" "]);
     [mp4artTask setArguments:taskArgs];
@@ -622,7 +718,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	[taskArgs addObject:tempArtPath];
 	[taskArgs addObject:@"--art-index"];
 	[taskArgs addObject:@"0"];
-	[taskArgs addObject:[anItem output]];
+	[taskArgs addObject:anItem.output];
 	
 	NSLog(@"Starting task with arguments: %@", [taskArgs componentsJoinedByString:@" "]);
     [mp4artAddTask setArguments:taskArgs];
@@ -639,7 +735,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	return YES;
 }
 
-- (BOOL) setHDFlag: (QueueItem *)anItem error:(NSError **) outError {
+- (BOOL) setHDFlag: (MediaItem *)anItem error:(NSError **) outError {
 	NSTask *mp4trackTask = [[NSTask alloc] init];
 	NSPipe *mp4trackStdoutPipe = [NSPipe pipe];
 	NSFileHandle *mp4trackStdoutHandle = [mp4trackStdoutPipe fileHandleForReading];
@@ -648,7 +744,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	// set arguments
     NSMutableArray *taskArgs = [NSMutableArray array];
 	[taskArgs addObject:@"--list"];
-	[taskArgs addObject:[anItem output]];
+	[taskArgs addObject:anItem.output];
 	
 	NSLog(@"Starting task with arguments: %@", [taskArgs componentsJoinedByString:@" "]);
     [mp4trackTask setArguments:taskArgs];
@@ -691,13 +787,110 @@ const NSString *QMErrorDomain = @"QMErrors";
 	NSLog(@"mp4track task ended with status %d", [mp4trackTask terminationStatus]);
 	if([width intValue] >= 720){
 		NSLog(@"Setting hd flag to 1");
-		[anItem setHdVideo:[NSNumber numberWithInt:1]];
+		anItem.hdVideo = [NSNumber numberWithInt:1];
 	}else{
 		NSLog(@"Setting hd flag to 0");
-		[anItem setHdVideo:[NSNumber numberWithInt:0]];
+		anItem.hdVideo = [NSNumber numberWithInt:0];
 	}
 		
 	return YES;
+}
+
+- (MediaItem *)mediaItemFromFile:(NSString *)path error:(NSError **) outError{
+	NSMutableDictionary *errorDict = [NSMutableDictionary dictionary];
+	MediaItem *newMediaItem;
+	
+	NSFileManager *fileManager = [NSFileManager defaultManager];
+	BOOL isDir = NO;
+	if (![fileManager fileExistsAtPath:path isDirectory:&isDir] || ![fileManager isReadableFileAtPath:path] || isDir){
+		NSString *errorMsg = [NSString stringWithFormat:@"%@ does not exist or is not readable", path];
+		[errorDict setObject:errorMsg forKey:NSLocalizedDescriptionKey];
+		*outError = [[[NSError alloc] initWithDomain:@"QMErrors" code:100 userInfo:errorDict] autorelease];
+		return NO;
+	}
+	
+	NSString *extensionList = @"mp4,m4v";
+	NSArray *extensions = [extensionList componentsSeparatedByString:@","];
+	NSString *fileExtension = [path pathExtension];
+	BOOL validExtension = NO;
+	if (fileExtension != nil && ![fileExtension isEqualToString:@""]){
+		for(NSString *ext in extensions){
+			if ([ext isEqualToString:fileExtension]) {
+				validExtension = YES;
+				break;
+			}
+		}
+	}
+	
+	if (validExtension == NO){
+		NSString *errorMsg = [NSString stringWithFormat:@"%@ does not have an allowed extension", path];
+		[errorDict setObject:errorMsg forKey:NSLocalizedDescriptionKey];
+		*outError = [[[NSError alloc] initWithDomain:@"QMErrors" code:101 userInfo:errorDict] autorelease];
+		return NO;		
+	}
+	
+	NSManagedObjectContext *moc = [self managedObjectContext];
+	NSEntityDescription *mediaEntity = [NSEntityDescription entityForName:@"MediaItem" inManagedObjectContext:moc];
+	if(mediaEntity){
+		newMediaItem = [[NSManagedObject alloc] initWithEntity:mediaEntity insertIntoManagedObjectContext:moc];
+		newMediaItem.output = path;
+	}
+	
+	NSTask *apTask = [[NSTask alloc] init];
+	NSPipe *apStdoutPipe = [NSPipe pipe];
+	NSFileHandle *apStdoutHandle = [apStdoutPipe fileHandleForReading];
+	[apTask setStandardOutput:apStdoutPipe];
+	
+	// set arguments
+    NSMutableArray *taskArgs = [NSMutableArray array];
+	[taskArgs addObject:path];
+	[taskArgs addObject:@"-t"];
+	
+	NSLog(@"Starting task with arguments: %@", [taskArgs componentsJoinedByString:@" "]);
+    [apTask setArguments:taskArgs];
+	
+	// launch
+    [apTask setLaunchPath:[appResourceDir stringByAppendingPathComponent:@"AtomicParsley"]];
+    [apTask launch];
+	
+	NSData *outputData = nil;
+	while ([apTask isRunning]) {
+		sleep(1);
+	}
+	
+	outputData = [apStdoutHandle readDataToEndOfFile];
+	
+	NSString *output = [[NSString alloc] initWithData:outputData encoding:NSASCIIStringEncoding];
+	NSArray *lines = [output componentsSeparatedByString:@"\n"];
+	NSLog(@"Found %d lines", [lines count]);
+	NSString *atomName = nil;
+	NSString *value = nil;
+	NSNumberFormatter *formatter = [[NSNumberFormatter alloc] init];
+	for(NSString *line in lines){
+		NSLog(@"Looking at line %@", line);
+		if([line getCapturesWithRegexAndReferences:@"Atom\\s*\"([^\"]+)\"\\s*contains:\\s*(.+)", @"${1}", &atomName, @"${2}", &value, nil]){
+			NSLog(@"Matched line: %@=%@", atomName, value);
+			if ([atomName isEqualToString:@"stik"]) {
+				if ([value isEqualToString:@"TV Show"]) {
+					newMediaItem.type = [NSNumber numberWithInt:ItemTypeTV];
+				}else{
+					newMediaItem.type = [NSNumber numberWithInt:ItemTypeMovie];
+				}
+				NSLog(@"Found stik atom");
+			}else if ([atomName isEqualToString:@"tvsh"]) {
+				newMediaItem.showName = value;
+				NSLog(@"Found tvsh atom");
+			}else if ([atomName isEqualToString:@"tvsn"]) {
+				newMediaItem.season = [formatter numberFromString:value];
+				NSLog(@"Found tvsn atom");
+			}else if ([atomName isEqualToString:@"tves"]) {
+				newMediaItem.episode = [formatter numberFromString:value];
+				NSLog(@"Found tves atom");
+			}
+		}
+	}
+	
+	return newMediaItem;	
 }
 
 - (void)stopEncode{
@@ -715,7 +908,8 @@ const NSString *QMErrorDomain = @"QMErrors";
 
 - (QueueItem *) addFileToQueue:(NSString *)path error:(NSError **) outError {
 	NSMutableDictionary *errorDict = [NSMutableDictionary dictionary];
-	QueueItem *newItem;
+	QueueItem *newQueueItem;
+	MediaItem *newMediaItem;
 	
 	NSFileManager *fileManager = [NSFileManager defaultManager];
 	BOOL isDir = NO;
@@ -749,21 +943,28 @@ const NSString *QMErrorDomain = @"QMErrors";
 
 	NSManagedObjectContext *moc = [self managedObjectContext];
 	NSEntityDescription *queueEntity = [NSEntityDescription entityForName:@"QueueItem" inManagedObjectContext:moc];
+	NSEntityDescription *mediaEntity = [NSEntityDescription entityForName:@"MediaItem" inManagedObjectContext:moc];
 	if(queueEntity){
-		newItem = [[NSManagedObject alloc] initWithEntity:queueEntity insertIntoManagedObjectContext:moc];
-		[newItem setValue:path forKey:@"input"];
+		newQueueItem = [[NSManagedObject alloc] initWithEntity:queueEntity insertIntoManagedObjectContext:moc];
+		newMediaItem = [[NSManagedObject alloc] initWithEntity:mediaEntity insertIntoManagedObjectContext:moc];
+		newQueueItem.mediaItem = newMediaItem;
+		newQueueItem.mediaItem.input = path;
 		QueueItem *lastItem = [self lastQueueItem];
-		[newItem setSortOrder:[NSNumber numberWithInt:[[lastItem sortOrder] intValue] + 1]];
+		if (lastItem) {
+			newQueueItem.sortOrder = [NSNumber numberWithInt:[[lastItem sortOrder] intValue] + 1];
+		}else {
+			newQueueItem.sortOrder = [NSNumber numberWithInt:1];
+		}
 		 
 		// Set output path
 		NSString *basename = [[path lastPathComponent] stringByDeletingPathExtension];
 		NSString *outputPath = [[NSUserDefaults standardUserDefaults] objectForKey:@"outputFolder"];
-		[newItem setOutput:[NSString stringWithFormat:@"%@/%@.m4v", outputPath, basename]];
-		if (![self processFileName:newItem error:outError]) {
+		newQueueItem.mediaItem.output = [NSString stringWithFormat:@"%@/%@.m4v", outputPath, basename];
+		if (![self processFileName:newQueueItem.mediaItem error:outError]) {
 			NSLog(@"Unable to process filename");
 		}
 
-		if([self updateMetadata:newItem error:outError] == NO){
+		if([self updateMetadata:newQueueItem.mediaItem error:outError] == NO){
 			NSLog(@"Unable to process metadata");
 		}
 	}
@@ -773,10 +974,10 @@ const NSString *QMErrorDomain = @"QMErrors";
 	
 	// Start the queue if necessary
 	[self runQueue];
-	return newItem;
+	return newQueueItem;
 }
 
-- (BOOL) processFileName: (QueueItem *)anItem error:(NSError **) outError {
+- (BOOL) processFileName: (MediaItem *)anItem error:(NSError **) outError {
 	NSNumberFormatter *formatter = [[NSNumberFormatter alloc] init];
 	
 	NSMutableArray *patterns = [[NSMutableArray alloc] init];
@@ -875,7 +1076,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	return YES;
 }
 
-- (BOOL) updateMetadata: (QueueItem *)anItem error:(NSError **) outError {
+- (BOOL) updateMetadata: (MediaItem *)anItem error:(NSError **) outError {
 	if ([[anItem type] intValue] == ItemTypeTV) {
 		TheTVDBProvider *ttdProvider = [[TheTVDBProvider alloc] initWithAnItem:anItem];
 		if ([ttdProvider applyMetadata] == NO) {
@@ -982,7 +1183,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	NSEntityDescription *entity = [NSEntityDescription entityForName: @"QueueItem"
 											  inManagedObjectContext: moc];
 	[request setEntity: entity];
-	NSPredicate *condition = [NSPredicate predicateWithFormat:@"sortOrder < %d AND status == 0", [[anItem sortOrder] intValue]];
+	NSPredicate *condition = [NSPredicate predicateWithFormat:@"sortOrder < %d", [[anItem sortOrder] intValue]];
 	[request setPredicate:condition];
 	[request setFetchLimit:1];
 	NSSortDescriptor *sortOrder = [[NSSortDescriptor alloc]
@@ -1016,7 +1217,7 @@ const NSString *QMErrorDomain = @"QMErrors";
 	NSEntityDescription *entity = [NSEntityDescription entityForName: @"QueueItem"
 											  inManagedObjectContext: moc];
 	[request setEntity: entity];
-	NSPredicate *condition = [NSPredicate predicateWithFormat:@"sortOrder > %d AND status == 0", [[anItem sortOrder] intValue]];
+	NSPredicate *condition = [NSPredicate predicateWithFormat:@"sortOrder > %d", [[anItem sortOrder] intValue]];
 	[request setPredicate:condition];
 	[request setFetchLimit:1];
 	NSSortDescriptor *sortOrder = [[NSSortDescriptor alloc]
