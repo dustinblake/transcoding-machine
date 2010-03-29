@@ -214,10 +214,13 @@
 	editingItem.season = [numFormatter numberFromString:[itemSeasonField stringValue]];
 	editingItem.episode = [numFormatter numberFromString:[itemEpisodeField stringValue]];
 	editingItem.summary = [itemSummaryField stringValue];
-	editingItem.coverArt = [NSBitmapImageRep representationOfImageRepsInArray:[[itemCoverArtField image] representations] 
+	if ([itemCoverArtField image] != nil) {
+		editingItem.coverArt = [NSBitmapImageRep representationOfImageRepsInArray:[[itemCoverArtField image] representations] 
 																usingType:NSJPEGFileType 
 															   properties:nil];
-	
+	}else{
+		editingItem.coverArt = nil;
+	}
 	editingItem.longDescription = [itemDescriptionField stringValue];
 	editingItem.copyright = [itemCopyrightField stringValue];
 	editingItem.network = [itemNetworkField stringValue];
