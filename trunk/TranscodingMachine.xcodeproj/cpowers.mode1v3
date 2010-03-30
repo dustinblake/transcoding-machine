@@ -216,7 +216,7 @@
 						<key>_historyCapacity</key>
 						<integer>0</integer>
 						<key>bookmark</key>
-						<string>361184B91161798700A4AA57</string>
+						<string>361184D211617DCD00A4AA57</string>
 						<key>history</key>
 						<array>
 							<string>3652F74211603AD200E2C1F7</string>
@@ -270,6 +270,8 @@
 			<key>Layout</key>
 			<array>
 				<dict>
+					<key>BecomeActive</key>
+					<true/>
 					<key>ContentConfiguration</key>
 					<dict>
 						<key>PBXBottomSmartGroupGIDs</key>
@@ -319,8 +321,8 @@
 							<key>PBXSmartGroupTreeModuleOutlineStateSelectionKey</key>
 							<array>
 								<array>
-									<integer>26</integer>
-									<integer>7</integer>
+									<integer>42</integer>
+									<integer>30</integer>
 									<integer>0</integer>
 								</array>
 							</array>
@@ -355,14 +357,12 @@
 					<key>Dock</key>
 					<array>
 						<dict>
-							<key>BecomeActive</key>
-							<true/>
 							<key>ContentConfiguration</key>
 							<dict>
 								<key>PBXProjectModuleGUID</key>
 								<string>1CE0B20306471E060097A5F4</string>
 								<key>PBXProjectModuleLabel</key>
-								<string>TheMovieDBProvider.m</string>
+								<string>PrefController.m</string>
 								<key>PBXSplitModuleInNavigatorKey</key>
 								<dict>
 									<key>Split0</key>
@@ -370,11 +370,11 @@
 										<key>PBXProjectModuleGUID</key>
 										<string>1CE0B20406471E060097A5F4</string>
 										<key>PBXProjectModuleLabel</key>
-										<string>TheMovieDBProvider.m</string>
+										<string>PrefController.m</string>
 										<key>_historyCapacity</key>
 										<integer>0</integer>
 										<key>bookmark</key>
-										<string>361184B81161798700A4AA57</string>
+										<string>361184D111617DCD00A4AA57</string>
 										<key>history</key>
 										<array>
 											<string>36FDB90610E0497D00656846</string>
@@ -393,7 +393,6 @@
 											<string>36CB6B27112A001B00DAFA28</string>
 											<string>36CB6B6F112A0D4100DAFA28</string>
 											<string>36CB6B91112A12DC00DAFA28</string>
-											<string>36CB6CB2112CC50100DAFA28</string>
 											<string>366A8716114B05190076DEF5</string>
 											<string>368A1EA411585057000A15BB</string>
 											<string>368A1EA511585057000A15BB</string>
@@ -406,14 +405,15 @@
 											<string>361E1D3D115FC46D002375FF</string>
 											<string>366B572E1160235B00684259</string>
 											<string>366B574D1160266F00684259</string>
-											<string>361184421161725D00A4AA57</string>
 											<string>361184431161725D00A4AA57</string>
-											<string>361184441161725D00A4AA57</string>
 											<string>361184461161725D00A4AA57</string>
 											<string>361184471161725D00A4AA57</string>
 											<string>36118477116176E500A4AA57</string>
 											<string>361184AB1161796100A4AA57</string>
-											<string>361184AC1161796100A4AA57</string>
+											<string>361184BB11617D3A00A4AA57</string>
+											<string>361184BC11617D3A00A4AA57</string>
+											<string>361184BD11617D3A00A4AA57</string>
+											<string>361184BE11617D3A00A4AA57</string>
 										</array>
 									</dict>
 									<key>SplitCount</key>

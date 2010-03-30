@@ -144,4 +144,40 @@
 		[monitoringButton setTitle:@"Enable"];
 	}
 }
+
+- (IBAction) browseDirectory: (id) sender{
+    NSOpenPanel * panel = [NSOpenPanel openPanel];
+	[panel setAllowsMultipleSelection:FALSE];
+	[panel setCanChooseFiles:FALSE];
+	[panel setCanChooseDirectories:TRUE];
+	
+	NSString *panelDir = nil;
+	if (sender == browseMonitoredButton) {
+		panelDir = [monitoredFolderField stringValue];
+	}else{
+		panelDir = [outputFolderField stringValue];
+	}
+	
+	/* We get the current file name and path from the destination field here */
+	[panel beginSheetForDirectory: panelDir 
+							 file: nil
+				   modalForWindow: [self window] modalDelegate: self
+				   didEndSelector: @selector( browseDirectoryDone:returnCode:contextInfo: )
+					  contextInfo: sender];
+}
+
+- (void) browseDirectoryDone: (NSSavePanel *) sheet
+			  returnCode: (int) returnCode 
+			 contextInfo: (void *) contextInfo{
+    if( returnCode == NSOKButton ){
+		NSError *error;
+		if (contextInfo == browseMonitoredButton) {
+			[monitoredFolderField setStringValue:[sheet directory]];
+		}else{
+			[outputFolderField setStringValue:[sheet directory]];
+		}
+		
+    }
+}
+
 @end

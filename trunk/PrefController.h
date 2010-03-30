@@ -18,6 +18,8 @@
 	IBOutlet NSTextField *transcoderField;
 	IBOutlet NSTextField *transcoderArgsField;
 	IBOutlet NSTextField *fileExtensionsField;
+	IBOutlet NSButton *browseMonitoredButton;
+	IBOutlet NSButton *browseOutputButton;
 }
 
 + (void)registerUserDefaults: (NSString *)appSupportDir;
@@ -27,4 +29,6 @@
 - (void)setMonitorFields;
 - (void)showWindow;
 - (IBAction)closeWindow:(id)sender;
+- (IBAction) browseDirectory: (id) sender;
+- (void) browseDirectoryDone: (NSSavePanel *) sheet returnCode: (int) returnCode contextInfo: (void *) contextInfo;
 @end
