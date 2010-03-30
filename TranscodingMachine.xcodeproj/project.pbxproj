@@ -17,6 +17,7 @@
 		360EA4E2111DDA920013300E /* mp4file in Resources */ = {isa = PBXBuildFile; fileRef = 360EA4DE111DDA910013300E /* mp4file */; };
 		360EA4E3111DDA920013300E /* mp4tags in Resources */ = {isa = PBXBuildFile; fileRef = 360EA4DF111DDA920013300E /* mp4tags */; };
 		360EA4E4111DDA920013300E /* mp4track in Resources */ = {isa = PBXBuildFile; fileRef = 360EA4E0111DDA920013300E /* mp4track */; };
+		3611843D11616E2E00A4AA57 /* TheMovieDBProvider.m in Sources */ = {isa = PBXBuildFile; fileRef = 3611843C11616E2E00A4AA57 /* TheMovieDBProvider.m */; };
 		36273923110132AD00AA63E8 /* MetadataProvider.m in Sources */ = {isa = PBXBuildFile; fileRef = 36273922110132AD00AA63E8 /* MetadataProvider.m */; };
 		3627392E110134C200AA63E8 /* TheTVDBProvider.m in Sources */ = {isa = PBXBuildFile; fileRef = 3627392D110134C200AA63E8 /* TheTVDBProvider.m */; };
 		365AEB9510E19DC300E78B0D /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 365AEB9310E19DC300E78B0D /* MainMenu.xib */; };
@@ -77,6 +78,8 @@
 		360EA4DE111DDA910013300E /* mp4file */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = mp4file; sourceTree = "<group>"; };
 		360EA4DF111DDA920013300E /* mp4tags */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = mp4tags; sourceTree = "<group>"; };
 		360EA4E0111DDA920013300E /* mp4track */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = mp4track; sourceTree = "<group>"; };
+		3611843B11616E2E00A4AA57 /* TheMovieDBProvider.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TheMovieDBProvider.h; sourceTree = "<group>"; };
+		3611843C11616E2E00A4AA57 /* TheMovieDBProvider.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TheMovieDBProvider.m; sourceTree = "<group>"; };
 		36273921110132AD00AA63E8 /* MetadataProvider.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MetadataProvider.h; sourceTree = "<group>"; };
 		36273922110132AD00AA63E8 /* MetadataProvider.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MetadataProvider.m; sourceTree = "<group>"; };
 		3627392C110134C200AA63E8 /* TheTVDBProvider.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TheTVDBProvider.h; sourceTree = "<group>"; };
@@ -141,6 +144,8 @@
 				36273922110132AD00AA63E8 /* MetadataProvider.m */,
 				3627392C110134C200AA63E8 /* TheTVDBProvider.h */,
 				3627392D110134C200AA63E8 /* TheTVDBProvider.m */,
+				3611843B11616E2E00A4AA57 /* TheMovieDBProvider.h */,
+				3611843C11616E2E00A4AA57 /* TheMovieDBProvider.m */,
 			);
 			name = Classes;
 			sourceTree = "<group>";
@@ -335,6 +340,7 @@
 				3627392E110134C200AA63E8 /* TheTVDBProvider.m in Sources */,
 				368A1E3B11584950000A15BB /* MediaItem.m in Sources */,
 				368A1E4811584A4F000A15BB /* QueueItem.m in Sources */,
+				3611843D11616E2E00A4AA57 /* TheMovieDBProvider.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

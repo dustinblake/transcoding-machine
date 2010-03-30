@@ -11,6 +11,7 @@
 #import "StringToNumberTransformer.h"
 #import <RegexKit/RegexKit.h>
 #import "TheTVDBProvider.h"
+#import "TheMovieDBProvider.h"
 
 #define FolderActionScriptName @"add to transcoding machine.scpt"
 #define EncodeStatusFilename @"tm_encoder.log"
@@ -1087,7 +1088,14 @@ const NSString *QMErrorDomain = @"QMErrors";
 			return NO;
 		};		
 	}else{
-		//TODO: Implemente movie api
+		TheMovieDBProvider *tmdProvider = [[TheMovieDBProvider alloc] initWithAnItem:anItem];
+		if ([tmdProvider applyMetadata] == NO) {
+			NSMutableDictionary *errorDict = [NSMutableDictionary dictionary];
+			NSString *errorMsg = [NSString stringWithFormat:@"Could not get metadata for item"];
+			[errorDict setObject:errorMsg forKey:NSLocalizedDescriptionKey];
+			*outError = [[[NSError alloc] initWithDomain:@"QMErrors" code:110 userInfo:errorDict] autorelease];
+			return NO;
+		};		
 	}
 	
 	return YES;
