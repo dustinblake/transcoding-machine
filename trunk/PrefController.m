@@ -31,6 +31,7 @@
 				desktopDirectory,   @"outputFolder",
 				@"avi,m4v,mkv,mp4",	@"allowedExtensions",
 				@"87C0BA77037B5012", @"ttdApiKey",
+				@"329edec1b30392adcc0a28f351b09336", @"tmdApiKey",
 				@"/Applications/HandBrakeCLI",	@"transcoderPath",
 				@"-i |INPUT| -o |OUTPUT| -e x264 -q 0.589999973773956 -a 1,1 -E faac,ac3 -B 160,auto -R 48,Auto -6 dpl2,auto -f mp4 -4 -X 1280 -P -m -x level=30:cabac=0:ref=3:mixed-refs=1:bframes=6:weightb=1:direct=auto:no-fast-pskip=1:me=umh:subq=7:analyse=all",
 									@"transcoderArgs",
